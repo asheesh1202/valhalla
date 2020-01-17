@@ -1,9 +1,6 @@
 #!/bin/sh
 
-error_exit() {
-  echo "$1" 1>&2
-  exit 1
-}
+set -o errexit -o pipefail -o nounset
 
 if  ! which spatialite >/dev/null; then
     echo "spatialite not found which is required.  Please install via:  sudo apt-get install spatialite-bin"
@@ -228,19 +225,19 @@ Atlantic/St_Helena,Africa/Abidjan
 EOF
 
 echo "downloading timezone polygon file." 1>&2 
-curl -L -s -o ./timezones-with-oceans.shapefile.zip ${url} || error_exit "wget failed for " ${url}
-unzip ./timezones-with-oceans.shapefile.zip 1>&2 || error_exit "unzip failed"
+curl -L -s -o ./timezones-with-oceans.shapefile.zip ${url}
+unzip ./timezones-with-oceans.shapefile.zip 1>&2
 
 tz_file=$(mktemp)
-spatialite_tool -i -shp ./dist/combined-shapefile-with-oceans -d ${tz_file} -t tz_world -s 4326 -g geom -c UTF-8 1>&2 || error_exit "spatialite_tool import failed"
-spatialite ${tz_file} "SELECT CreateSpatialIndex('tz_world', 'geom');" 1>&2 || error_exit "SpatialIndex failed" 
+spatialite_tool -i -shp ./dist/combined-shapefile-with-oceans -d ${tz_file} -t tz_world -s 4326 -g geom -c UTF-8 1>&2
+spatialite ${tz_file} "SELECT CreateSpatialIndex('tz_world', 'geom');" 1>&2
 
-spatialite ${tz_file} "DROP TABLE IF EXISTS "alias";" 1>&2 || error_exit "drop table alias failed"
-spatialite ${tz_file} "CREATE TABLE "alias" (alias_TZID text,alias_new_TZID text);" 1>&2 || error_exit "create table alias failed"
-spatialite -csv ${tz_file} ".import alias_tz.csv alias" 1>&2 || error_exit "alias table import failed"
-spatialite ${tz_file} "update tz_world set TZID = (select alias_new_TZID from alias where TZID = alias_TZID) where TZID in (select alias_TZID from alias);" 1>&2 || error_exit "updating tz_world failed"
-spatialite ${tz_file} "VACUUM;" 1>&2 || error_exit "VACUUM failed"
-spatialite ${tz_file} "ANALYZE;" 1>&2 || error_exit "ANALYZE failed"
+spatialite ${tz_file} "DROP TABLE IF EXISTS "alias";" 1>&2
+spatialite ${tz_file} "CREATE TABLE "alias" (alias_TZID text,alias_new_TZID text);" 1>&2
+spatialite -csv ${tz_file} ".import alias_tz.csv alias" 1>&2
+spatialite ${tz_file} "update tz_world set TZID = (select alias_new_TZID from alias where TZID = alias_TZID) where TZID in (select alias_TZID from alias);"
+spatialite ${tz_file} "VACUUM;" 1>&2
+spatialite ${tz_file} "ANALYZE;" 1>&2
 
 rm -rf dist
 rm -f ./timezones-with-oceans.shapefile.zip alias_tz.csv
